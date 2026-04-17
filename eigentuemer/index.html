@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1f8a4c">
+<title>Energie-Sandbox – Eigentümer EFH/MFH</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="assets/css/app.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-logo" aria-hidden="true">
+      <span></span><span></span><span></span><span></span><span></span>
+    </div>
+    <div class="brand-text">
+      <strong>Energie-Sandbox</strong>
+      <small>für Eigentümer</small>
+    </div>
+  </div>
+  <div class="topbar-actions">
+    <div class="seg" role="tablist" aria-label="Gebäudetyp">
+      <button class="seg-btn is-active" data-type="EFH" type="button">EFH</button>
+      <button class="seg-btn" data-type="MFH" type="button">MFH</button>
+    </div>
+    <button class="icon-btn" id="btn-reset" title="Neu starten" aria-label="Neu starten">↺</button>
+  </div>
+</header>
+
+<main class="app">
+  <section class="map-wrap">
+    <div id="map" aria-label="Karte"></div>
+
+    <div class="map-search">
+      <input id="search-input" type="search" inputmode="search" autocomplete="off"
+             placeholder="Adresse suchen (Straße, PLZ, Ort)"
+             aria-label="Adresse suchen">
+      <button id="search-go" type="button" aria-label="Suchen">⌕</button>
+      <button id="geo-locate" type="button" aria-label="Meinen Standort nutzen" title="Mein Standort">⌖</button>
+      <div id="search-results" class="search-results" hidden></div>
+    </div>
+
+    <div class="map-hint" id="map-hint">Klick auf dein <b>Gebäude</b> auf der Karte.</div>
+
+    <div class="map-legend" id="map-legend" hidden>
+      <span class="legend-item"><i class="sw sw-building"></i>Gebäude</span>
+      <span class="legend-item"><i class="sw sw-pv"></i>PV-Module</span>
+      <span class="legend-item"><i class="sw sw-wp"></i>Wärmepumpe</span>
+    </div>
+  </section>
+
+  <aside class="kpi-strip" id="kpi-strip">
+    <div class="kpi">
+      <div class="kpi-val" id="kpi-autark">–</div>
+      <div class="kpi-lbl">Autarkie</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-val" id="kpi-eigen">–</div>
+      <div class="kpi-lbl">Eigenverbr.</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-val" id="kpi-cost">–</div>
+      <div class="kpi-lbl">€/Jahr</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-val" id="kpi-co2">–</div>
+      <div class="kpi-lbl">CO₂ t/a</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-val" id="kpi-amort">–</div>
+      <div class="kpi-lbl">Amort.</div>
+    </div>
+  </aside>
+
+  <nav class="tabs" role="tablist" aria-label="Panel">
+    <button class="tab is-active" data-tab="gebaeude" role="tab" aria-selected="true">Gebäude</button>
+    <button class="tab" data-tab="pv" role="tab" aria-selected="false">PV</button>
+    <button class="tab" data-tab="heizung" role="tab" aria-selected="false">Heizung</button>
+    <button class="tab" data-tab="lastgang" role="tab" aria-selected="false">Lastgang</button>
+    <button class="tab" data-tab="bilanz" role="tab" aria-selected="false">Bilanz</button>
+  </nav>
+
+  <section class="sheet" id="sheet" aria-live="polite">
+    <div class="sheet-handle" aria-hidden="true"></div>
+
+    <!-- GEBÄUDE -->
+    <div class="panel is-active" data-panel="gebaeude">
+      <h2>Gebäude</h2>
+      <div class="hint" id="b-hint">Noch kein Gebäude gewählt. Such eine Adresse und klicke auf dein Gebäude.</div>
+      <div class="grid" id="b-fields" hidden>
+        <label class="field">
+          <span>Nutzung</span>
+          <select id="b-nutzung">
+            <option value="EFH">Einfamilienhaus</option>
+            <option value="MFH">Mehrfamilienhaus</option>
+          </select>
+        </label>
+        <label class="field" id="f-einheiten" hidden>
+          <span>Wohneinheiten</span>
+          <input id="b-einheiten" type="number" min="2" max="40" step="1" value="4">
+        </label>
+        <label class="field">
+          <span>Baujahr</span>
+          <input id="b-baujahr" type="number" min="1900" max="2030" step="1" value="1985">
+        </label>
+        <label class="field">
+          <span>Geschosse</span>
+          <input id="b-geschosse" type="number" min="1" max="5" step="1" value="2">
+        </label>
+        <label class="field">
+          <span>Grundfläche m²</span>
+          <input id="b-grundflaeche" type="number" min="30" max="2000" step="1" value="120" readonly>
+        </label>
+        <label class="field">
+          <span>Wohnfläche m²</span>
+          <input id="b-wohnflaeche" type="number" min="30" max="3000" step="1" value="180">
+        </label>
+        <label class="field">
+          <span>Personen</span>
+          <input id="b-personen" type="number" min="1" max="40" step="1" value="4">
+        </label>
+        <label class="field">
+          <span>Spez. Wärme kWh/m²·a</span>
+          <input id="b-spez" type="number" min="20" max="300" step="5" value="130">
+        </label>
+        <label class="field">
+          <span>Dachform</span>
+          <select id="b-dachform">
+            <option value="sattel">Satteldach</option>
+            <option value="walm">Walmdach</option>
+            <option value="pult">Pultdach</option>
+            <option value="flach">Flachdach</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Dachneigung °</span>
+          <input id="b-neigung" type="range" min="0" max="60" step="5" value="35">
+          <output id="o-neigung">35°</output>
+        </label>
+        <label class="field">
+          <span>First-Azimut ° (0=Nord)</span>
+          <input id="b-azimut" type="range" min="0" max="180" step="5" value="90">
+          <output id="o-azimut">90°</output>
+        </label>
+      </div>
+    </div>
+
+    <!-- PV -->
+    <div class="panel" data-panel="pv">
+      <h2>Photovoltaik</h2>
+      <div class="hint" id="pv-hint" hidden>Wähle erst ein Gebäude.</div>
+      <div class="grid" id="pv-fields">
+        <div class="field field-wide">
+          <span>Modul-Leistung (Wp)</span>
+          <input id="pv-wp" type="number" min="300" max="500" step="10" value="440">
+        </div>
+        <div class="roof-faces" id="roof-faces"></div>
+        <label class="field field-wide">
+          <span>Preis €/kWp (inkl. Montage)</span>
+          <input id="pv-preis" type="number" min="800" max="2200" step="50" value="1400">
+        </label>
+        <label class="field">
+          <span>Batterie kWh</span>
+          <input id="pv-bat" type="range" min="0" max="30" step="0.5" value="0">
+          <output id="o-bat">0 kWh</output>
+        </label>
+        <label class="field">
+          <span>Batterie €/kWh</span>
+          <input id="pv-bat-preis" type="number" min="300" max="1500" step="50" value="700">
+        </label>
+        <div class="kpi-inline">
+          <span>Installiert:</span> <b id="pv-kwp-out">0 kWp</b>
+          &nbsp;·&nbsp;
+          <span>Jahresertrag:</span> <b id="pv-yield-out">0 kWh</b>
+        </div>
+      </div>
+    </div>
+
+    <!-- HEIZUNG -->
+    <div class="panel" data-panel="heizung">
+      <h2>Heizung</h2>
+      <div class="grid">
+        <label class="field">
+          <span>Aktuelle Heizung</span>
+          <select id="h-ist">
+            <option value="gas">Gas</option>
+            <option value="oel">Öl</option>
+            <option value="fw">Fernwärme</option>
+            <option value="wp_lw">Luft-WP</option>
+            <option value="wp_sw">Sole-WP</option>
+            <option value="pellet">Pellets</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Neue Heizung</span>
+          <select id="h-neu">
+            <option value="keine">unverändert</option>
+            <option value="wp_lw" selected>Luft-WP</option>
+            <option value="wp_sw">Sole-WP</option>
+            <option value="pellet">Pellets</option>
+            <option value="fw">Fernwärme</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Heizlast kW (auto)</span>
+          <input id="h-heizlast" type="number" min="1" max="100" step="0.5" value="8">
+        </label>
+        <label class="field">
+          <span>WP-Nennleistung kW</span>
+          <input id="h-wp-kw" type="range" min="3" max="30" step="0.5" value="8">
+          <output id="o-wp">8 kW</output>
+        </label>
+        <label class="field">
+          <span>JAZ (Jahresarbeitszahl)</span>
+          <input id="h-jaz" type="number" min="2.5" max="5.5" step="0.1" value="3.8">
+        </label>
+        <label class="field">
+          <span>Heizstab-Anteil (auto)</span>
+          <output id="o-heizstab">0 %</output>
+        </label>
+        <label class="field field-wide">
+          <span>Strompreis €/kWh</span>
+          <input id="p-strom" type="number" min="0.15" max="0.60" step="0.01" value="0.32">
+        </label>
+        <label class="field">
+          <span>Einspeisevergütung ct/kWh</span>
+          <input id="p-einsp" type="number" min="4" max="15" step="0.1" value="7.9">
+        </label>
+        <label class="field">
+          <span>Gas €/kWh</span>
+          <input id="p-gas" type="number" min="0.05" max="0.30" step="0.01" value="0.11">
+        </label>
+      </div>
+    </div>
+
+    <!-- LASTGANG -->
+    <div class="panel" data-panel="lastgang">
+      <h2>Lastgang</h2>
+      <div class="chart-controls">
+        <div class="seg" role="tablist">
+          <button class="seg-btn is-active" data-range="day">Tag</button>
+          <button class="seg-btn" data-range="week">Woche</button>
+          <button class="seg-btn" data-range="month">Monat</button>
+          <button class="seg-btn" data-range="year">Jahr</button>
+        </div>
+        <div class="seg" role="tablist">
+          <button class="seg-btn is-active" data-season="winter">Winter</button>
+          <button class="seg-btn" data-season="spring">Übergang</button>
+          <button class="seg-btn" data-season="summer">Sommer</button>
+        </div>
+      </div>
+      <div class="chart-box">
+        <canvas id="chart-load"></canvas>
+      </div>
+      <div class="legend-inline">
+        <span class="lg lg-haushalt"></span>Haushalt
+        <span class="lg lg-wp"></span>Wärmepumpe
+        <span class="lg lg-pv"></span>PV-Ertrag
+        <span class="lg lg-net"></span>Netzbezug
+      </div>
+    </div>
+
+    <!-- BILANZ -->
+    <div class="panel" data-panel="bilanz">
+      <h2>Jahresbilanz</h2>
+      <div class="chart-box">
+        <canvas id="chart-bilanz"></canvas>
+      </div>
+      <div class="bilanz-table" id="bilanz-table"></div>
+      <div class="advice" id="advice"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+window.APP_CONFIG = {
+  defaultLat: 52.2799,
+  defaultLng: 8.0472,
+  defaultZoom: 18
+};
+</script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js" defer></script>
+<script type="module" src="assets/js/app.js"></script>
+</body>
+</html>
